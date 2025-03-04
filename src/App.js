@@ -32,7 +32,7 @@ export default function App() {
         return res.json();
       })
       .then((data) => {
-        console.log("Tasks Grabbed: ", data);
+        console.log("Get Response:", data);
         setTasks(Array.isArray(data) ? data : []);
       })
       .catch((err) => console.error("ERR GET TASK: ", err))
@@ -67,6 +67,7 @@ export default function App() {
         return res.json();
       })
       .then((data) => {
+        console.log("Add Response:", data);
         if (data?.id) {
           const task = {
             id: data.id,
@@ -112,6 +113,7 @@ export default function App() {
         return res.json();
       })
       .then((data) => {
+        console.log("Delete Response:", data);
         console.log("Deleting Task: ", target.todo.text, target.id);
         setTasks((prevTasks) => prevTasks.filter((_, i) => i !== index));
       })
@@ -148,6 +150,7 @@ export default function App() {
         return res.json();
       })
       .then((data) => {
+        console.log("Edit Response:", data);
         console.log("Editing Task : ", target.todo.text, target.id);
         setTasks((prevTasks) =>
           prevTasks.map((task, i) =>
