@@ -1,54 +1,78 @@
 import "./styles.css";
 import { useEffect, useState } from "react";
+import Item from "./Item";
 
-// User ID for promises
+// API Constants
 const USERID = "VINA_VO";
-// Sleep to show Load Message
 const SLEEP = 500;
-// API URL
-const API = "https://sandbox.hurdlr.com/rest/v5/interview/todo";
-const APIGET = `https://sandbox.hurdlr.com/rest/v5/interview/todos?userId=${USERID}&sleepDuration=${SLEEP}`;
+const THROW_ERROR = true;
+const API_BASE = "https://sandbox.hurdlr.com/rest/v5/interview";
+const API = `${API_BASE}/todo`;
+const API_GET = `${API_BASE}/todos?userId=${USERID}&sleepDuration=${SLEEP}`;
+// const API_GET = `${API_BASE}/todos?userId=${USERID}&sleepDuration=${SLEEP}&throwError=${THROW_ERROR}`;
+
+const handleApi = (res) => {
+  return res.json().then((data) => {
+    if (!res.ok) {
+      console.log("API Response:", JSON.stringify(data, null, 2));
+      throw new Error(
+        `Request failed - STATUS: ${res.status}, Message: ${
+          data?.error || processError(data?.errors)
+        }`
+      );
+    }
+
+    if (data?.error) {
+      throw new Error(`API Error: ${data.error}`);
+    }
+
+    // if (data?.result === "FAILURE") {
+    //   throw new Error(processError(data.errors));
+    // }
+
+    return data;
+  });
+};
 
 export default function App() {
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [text, setText] = useState("");
 
-  // Input changes for new task
-  const onChangeText = (e) => {
-    setText(e.target.value);
-  };
-
   useEffect(() => {
     getTasks();
   }, []);
 
+  // Fetch all tasks for the current user
   const getTasks = () => {
     setLoading(true);
-    const options = { method: "GET", headers: { accept: "application/json" } };
-    fetch(APIGET, options)
-      .then((res) => {
-        // console.log("Response:", res);
-        return res.json();
-      })
+    fetch(API_GET, { method: "GET", headers: { accept: "application/json" } })
+      .then(handleApi)
       .then((data) => {
-        console.log("Get Response:", data);
+        console.log("Getting Tasks:", JSON.stringify(data, null, 2));
         setTasks(Array.isArray(data) ? data : []);
       })
-      .catch((err) => console.error("ERR GET TASK: ", err))
+      .catch((err) => {
+        console.error("Error fetching tasks-", err.message || err);
+      })
       .finally(() => setLoading(false));
   };
 
-  // Adds a task
+  // Handles input changes for adding a new task
+  const onChangeText = (e) => {
+    setText(e.target.value);
+  };
+
+  // Add a new task for the user
   const addTask = (e) => {
     e.preventDefault();
-    if (text.trim().length <= 0) {
-      console.warn("Can't add an empty task! Try again!");
+    if (text.trim().length === 0) {
+      console.warn("Cannot add an empty task.");
       return;
     }
 
     setLoading(true);
-    const options = {
+    fetch(API, {
       method: "POST",
       headers: {
         accept: "application/json",
@@ -58,43 +82,47 @@ export default function App() {
         userId: USERID,
         todo: { text },
         sleepDuration: SLEEP,
+        // throwError: THROW_ERROR,
       }),
-    };
-
-    fetch(API, options)
-      .then((res) => {
-        // console.log("Response:", res);
-        return res.json();
-      })
+    })
+      .then(handleApi)
       .then((data) => {
-        console.log("Add Response:", data);
+        console.log("ADD Response:", JSON.stringify(data, null, 2));
         if (data?.id) {
-          const task = {
-            id: data.id,
+          const newTask = {
             userId: USERID,
+            id: data.id,
             todo: { text },
           };
-          console.log("Adding Task: ", task.todo.text, task.id);
-          setTasks((prevTasks) => [...prevTasks, task]);
+          console.log(`Adding Task: ${newTask.todo.text} (ID: ${newTask.id})`);
+          setTasks((prevTasks) => [...prevTasks, newTask]);
           setText("");
         } else {
-          console.error("No valid task ID:", data);
+          console.error("Data ID doesn't exist");
         }
       })
-      .catch((err) => console.error("ERR ADD TASK: ", err))
+      .catch((err) => {
+        if (err.response) {
+          console.error(
+            "API Error Response:",
+            JSON.stringify(errorData, null, 2)
+          );
+        }
+        console.error("Error adding task:", err.message || err);
+      })
       .finally(() => setLoading(false));
   };
 
-  // Delete task based off index
+  // Delete a task by index
   const deleteTask = (index) => {
     const target = tasks[index];
     if (!target) {
-      console.log("NO TARGET");
+      console.warn("Task not found for deletion.");
       return;
     }
 
     setLoading(true);
-    const options = {
+    fetch(API, {
       method: "DELETE",
       headers: {
         accept: "application/json",
@@ -104,33 +132,29 @@ export default function App() {
         id: target.id,
         userId: USERID,
         sleepDuration: SLEEP,
+        // throwError: THROW_ERROR,
       }),
-    };
-
-    fetch(API, options)
-      .then((res) => {
-        // console.log("Response:", res);
-        return res.json();
-      })
+    })
+      .then(handleApi)
       .then((data) => {
-        console.log("Delete Response:", data);
-        console.log("Deleting Task: ", target.todo.text, target.id);
+        console.log("DELETE Response:", JSON.stringify(data, null, 2));
+        console.log(`Deleting Task: ${target.todo.text} (ID: ${target.id})`);
         setTasks((prevTasks) => prevTasks.filter((_, i) => i !== index));
       })
-      .catch((err) => console.error("ERR DEL TASK: ", err))
+      .catch((err) => console.error("Error deleting task:", err))
       .finally(() => setLoading(false));
   };
 
-  // Updates task based off index
+  // Edit an existing task
   const editTask = (index, newText) => {
     const target = tasks[index];
     if (!target) {
-      console.log("NO TARGET");
+      console.warn("Task not found for editing.");
       return;
     }
 
     setLoading(true);
-    const options = {
+    fetch(API, {
       method: "POST",
       headers: {
         accept: "application/json",
@@ -141,25 +165,21 @@ export default function App() {
         id: target.id,
         todo: { text: newText },
         sleepDuration: SLEEP,
+        // throwError: THROW_ERROR,
       }),
-    };
-
-    fetch(API, options)
-      .then((res) => {
-        // console.log("Response:", res);
-        return res.json();
-      })
+    })
+      .then(handleApi)
       .then((data) => {
-        console.log("Edit Response:", data);
-        console.log("Editing Task : ", target.todo.text, target.id);
+        console.log("EDIT Response:", JSON.stringify(data, null, 2));
+        console.log(`Editing Task: ${target.todo.text} (ID: ${target.id})`);
         setTasks((prevTasks) =>
           prevTasks.map((task, i) =>
             i === index ? { ...task, todo: { text: newText } } : task
           )
         );
-        console.log("EDITED Task : ", newText, target.id);
+        console.log(`EDITED TO: ${newText} (ID: ${target.id})`);
       })
-      .catch((err) => console.error("ERR EDIT TASK: ", err))
+      .catch((err) => console.error("Error editing task:", err))
       .finally(() => setLoading(false));
   };
 
@@ -173,9 +193,8 @@ export default function App() {
       <section className="container">
         <ul className="taskList">
           {tasks.map((task, index) => (
-            // Using Item component for rows
             <Item
-              key={index}
+              key={task.id}
               task={task}
               index={index}
               deleteTask={deleteTask}
@@ -190,72 +209,9 @@ export default function App() {
             value={text}
             onChange={onChangeText}
             placeholder="Add tasks"
-          ></input>
+          />
         </form>
       </section>
     </main>
-  );
-}
-
-// Refactor the row into its own component
-function Item({ task, index, deleteTask, editTask }) {
-  // Turn it into editable TextInput + DONE button (when tapped)
-  // Use states to track if editable or edited/changed text
-  const [editable, setEditable] = useState(false);
-  const text = task.todo.text;
-  const [edited, setEdited] = useState(text);
-
-  // Enable edits when text is clicked
-  const makeEdits = () => {
-    // Updates task to new value and toggles edit mode
-    setEdited(text);
-    setEditable(true);
-  };
-
-  // Updates the changed input
-  const handleInputChange = (e) => {
-    setEdited(e.target.value);
-  };
-
-  const save = () => {
-    if (edited.trim().length === 0) {
-      console.warn("Can't edit to an empty task! Try again!");
-      return;
-    }
-    editTask(index, edited);
-    setEditable(false);
-  };
-
-  return (
-    <li className="taskListItem">
-      {editable ? (
-        // Show editable input field and done button
-        <>
-          <input
-            type="text"
-            value={edited}
-            onChange={handleInputChange}
-            className="editItem"
-          />
-          <button type="button" className="doneButton" onClick={save}>
-            DONE
-          </button>
-        </>
-      ) : (
-        // Non-editable state to be clickable and show task text
-        <>
-          <span className="taskText" onClick={makeEdits}>
-            {text}
-          </span>
-          <button
-            type="button"
-            className="deleteButton"
-            onClick={() => deleteTask(index)}
-          >
-            X
-          </button>
-        </>
-      )}
-    </li>
   );
 }
