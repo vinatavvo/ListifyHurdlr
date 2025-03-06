@@ -11,24 +11,27 @@ const API = `${API_BASE}/todo`;
 const API_GET = `${API_BASE}/todos?userId=${USERID}&sleepDuration=${SLEEP}`;
 // const API_GET = `${API_BASE}/todos?userId=${USERID}&sleepDuration=${SLEEP}&throwError=${THROW_ERROR}`;
 
+// Handle errors
 const handleApi = (res) => {
   return res.json().then((data) => {
-    if (!res.ok) {
-      console.log("API Response:", JSON.stringify(data, null, 2));
+    // Throw an error if the response status is bad or if there's an explicit error message
+    if (!res.ok || data?.error) {
+      console.log("Raw API Response:", JSON.stringify(data, null, 2));
       throw new Error(
-        `Request failed - STATUS: ${res.status}, Message: ${
-          data?.error || processError(data?.errors)
-        }`
+        `Message: ${
+          data?.error || "Unknown error."
+        } \n Request failed - STATUS: ${res.status}`
       );
     }
 
-    if (data?.error) {
-      throw new Error(`API Error: ${data.error}`);
+    // Return global error messages if the request failed
+    if (data?.result === "FAILURE") {
+      const globalErrorMessage =
+        data.errors?.globalErrors?.map((err) => err.errorMessage).join(", ") ||
+        "Unknown API error.";
+      console.error("Global API Error:", globalErrorMessage);
+      throw new Error(globalErrorMessage);
     }
-
-    // if (data?.result === "FAILURE") {
-    //   throw new Error(processError(data.errors));
-    // }
 
     return data;
   });
@@ -53,7 +56,7 @@ export default function App() {
         setTasks(Array.isArray(data) ? data : []);
       })
       .catch((err) => {
-        console.error("Error fetching tasks-", err.message || err);
+        console.error("Error getting tasks-", err.message || err);
       })
       .finally(() => setLoading(false));
   };
@@ -87,28 +90,28 @@ export default function App() {
     })
       .then(handleApi)
       .then((data) => {
-        console.log("ADD Response:", JSON.stringify(data, null, 2));
-        if (data?.id) {
-          const newTask = {
-            userId: USERID,
-            id: data.id,
-            todo: { text },
-          };
-          console.log(`Adding Task: ${newTask.todo.text} (ID: ${newTask.id})`);
-          setTasks((prevTasks) => [...prevTasks, newTask]);
-          setText("");
-        } else {
-          console.error("Data ID doesn't exist");
+        // console.log("ADD Response:", JSON.stringify(data, null, 2));
+        if (!data?.id) {
+          console.error("Unexpected error: Task ID is missing.");
+          // alert("Unexpected error: No task ID returned.");
+          return;
         }
+        const newTask = {
+          userId: USERID,
+          id: data.id,
+          todo: { text },
+        };
+        console.log(`Adding Task: ${newTask.todo.text} (ID: ${newTask.id})`);
+        setTasks((prevTasks) => [...prevTasks, newTask]);
+        setText("");
       })
       .catch((err) => {
-        if (err.response) {
-          console.error(
-            "API Error Response:",
-            JSON.stringify(errorData, null, 2)
-          );
-        }
-        console.error("Error adding task:", err.message || err);
+        console.error(
+          `Error adding task- ${newTask.todo.text} (ID: ${newTask.id}) \n ${
+            err.message || err
+          }`
+        );
+        // alert(`Error adding task: ${err.message}`);
       })
       .finally(() => setLoading(false));
   };
@@ -132,16 +135,23 @@ export default function App() {
         id: target.id,
         userId: USERID,
         sleepDuration: SLEEP,
-        // throwError: THROW_ERROR,
+        throwError: THROW_ERROR,
       }),
     })
       .then(handleApi)
       .then((data) => {
-        console.log("DELETE Response:", JSON.stringify(data, null, 2));
+        // console.log("DELETE Response:", JSON.stringify(data, null, 2));
         console.log(`Deleting Task: ${target.todo.text} (ID: ${target.id})`);
         setTasks((prevTasks) => prevTasks.filter((_, i) => i !== index));
       })
-      .catch((err) => console.error("Error deleting task:", err))
+      .catch((err) => {
+        console.error(
+          `Error deleting task- ${target.todo.text} (ID: ${target.id}) \n ${
+            err.message || err
+          }`
+        );
+        // alert(`Error deleting task: ${err.message}`);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -165,12 +175,12 @@ export default function App() {
         id: target.id,
         todo: { text: newText },
         sleepDuration: SLEEP,
-        // throwError: THROW_ERROR,
+        throwError: THROW_ERROR,
       }),
     })
       .then(handleApi)
       .then((data) => {
-        console.log("EDIT Response:", JSON.stringify(data, null, 2));
+        // console.log("EDIT Response:", JSON.stringify(data, null, 2));
         console.log(`Editing Task: ${target.todo.text} (ID: ${target.id})`);
         setTasks((prevTasks) =>
           prevTasks.map((task, i) =>
@@ -179,7 +189,14 @@ export default function App() {
         );
         console.log(`EDITED TO: ${newText} (ID: ${target.id})`);
       })
-      .catch((err) => console.error("Error editing task:", err))
+      .catch((err) => {
+        console.error(
+          `Error editing task- ${target.todo.text} to ${newText} (ID: ${
+            target.id
+          }) \n ${err.message || err}`
+          // alert(`Error editing task: ${err.message}`);
+        );
+      })
       .finally(() => setLoading(false));
   };
 
